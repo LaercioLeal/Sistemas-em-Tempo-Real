@@ -99,7 +99,7 @@ static void adc_task(void *args)
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY); // aguarda notificação da ISR
     adc_oneshot_read(adc_unit, ADC_CHANNEL_6, &sinal_adc);
 
-    bool add = Buffer_push(&circular, sinal_adc * sinal_adc); // Multiplicação para armazenar Potencia do Sinal no Buffer.
+    bool add = Buffer_push(&circular, sinal_adc);
     if (!add)
     {
       ESP_LOGE(TAG, "Não foi possível adicionar o valor lido.");
