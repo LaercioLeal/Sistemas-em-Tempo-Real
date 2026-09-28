@@ -22,7 +22,7 @@
 static const char *TAG = "EXECUTIVO";
 
 // Incrementado pela interrupção do timer
-static volatile uint32_t timer_ticks = 0;
+static volatile bool timer_flag = false;
 
 // INTERRUPÇÃO DO TIMER
 static bool IRAM_ATTR timer_callback(
@@ -30,7 +30,7 @@ static bool IRAM_ATTR timer_callback(
     const gptimer_alarm_event_data_t *edata,
     void *user_ctx)
 {
-    timer_ticks++;
+    timer_flag = true;
 
     return false;
 }
@@ -191,13 +191,11 @@ void app_main(void)
     // Inicia timer periódico de 150 ms
     configurar_timer();
 
-    uint32_t ticks_processados = 0;
-
     while (1)
     {
-        if (timer_ticks != ticks_processados)
+        if (timer_flag)
         {
-            ticks_processados++;
+            timer_flag = false;
 
             executar_quadro(quadro);
 
