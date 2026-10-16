@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "esp_task_wdt.h"
+#include "i2sMic.h"
 #include "execCiclico.h"
 #include "bffPingPong.h"
 
@@ -10,6 +11,7 @@ void app_main(void)
 {
     esp_task_wdt_deinit(); // Desligando Watchdog timer
     Buffer_init();
+    i2s_mic_init();
 
     uint32_t quadro = 0;
 

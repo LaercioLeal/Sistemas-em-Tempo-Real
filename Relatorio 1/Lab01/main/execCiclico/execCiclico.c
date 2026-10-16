@@ -1,7 +1,12 @@
 #include "execCiclico.h"
+#include "i2sMic.h"
+#include "filtroFIR.h"
+#include "bffPingPong.h"
 
 // Flag de interrupção do timer
 volatile bool flag_exec_ciclico = false;
+extern int16_t mic_buffer[];
+static int fir_out[FIR_OUT_SIZE];
 
 void set_exec_ciclico_flag(bool val){
     flag_exec_ciclico = val;
@@ -79,20 +84,22 @@ void exec_ciclico_executar_quadro(uint32_t quadro)
     // 0, 2, 4,
     if ((quadro % 2) == 0)
     {
-        printf("T1");
+        fill_i2s_mic();
     }
 
     // T2 executa nos quadros:
     // 0, 3
     if ((quadro % 3) == 0)
     {        
-        printf("T2");
+        fir_process_buffer(mic_buffer, fir_out, I2S_BUFFER_SIZE);
     }
 
     // T3 executa nos quadros:
     // 0
     if ((quadro % 6) == 0)
     {
-        printf("T3");
+        for(int i = 0; i < FIR_OUT_SIZE; i++){
+            Buffer_push(fir_out[0]);
+        }
     }
 }
