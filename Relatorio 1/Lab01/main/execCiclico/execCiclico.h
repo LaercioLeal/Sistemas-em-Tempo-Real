@@ -13,10 +13,10 @@
 #include "esp_task_wdt.h"
 
 // Ciclo básico do executivo
-#define CICLO_BASE_US 150000  // 150 ms
+#define CICLO_BASE_US 64000  // 64 ms
 
 // Quantidade de quadros no ciclo maior
-#define TOTAL_QUADROS 6
+#define TOTAL_QUADROS 8
 
 void set_exec_ciclico_flag(bool val);
 void exec_ciclico_executar_quadro(uint32_t quadro);

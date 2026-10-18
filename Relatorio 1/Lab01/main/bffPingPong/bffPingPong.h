@@ -2,7 +2,9 @@
 
 #define BUFFER_PING_PONG
 
-#define BUFFERLENGTH 1024
+#include "projetoCfg.h"
+
+#define BUFFERLENGTH BLOCK_SIZE
 
 void Buffer_init();
 

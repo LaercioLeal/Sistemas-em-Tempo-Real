@@ -5,9 +5,9 @@ static int secondary_buffer[BUFFERLENGTH];
 
 static int * write_buffer;
 static int * read_buffer;
-static int write_counter;
-static bool primary_signal; // Indica se esta utilizando o primeiro ou o segundo buffer.
-static bool can_read; // Indica se um novo buffer esta pronto para leitura
+volatile static int write_counter;
+volatile static bool primary_signal; // Indica se esta utilizando o primeiro ou o segundo buffer.
+volatile static bool can_read; // Indica se um novo buffer esta pronto para leitura
 
 void Buffer_init()
 {
@@ -20,7 +20,7 @@ void Buffer_init()
 
 bool Buffer_push(int value)
 {
-    if (write_counter >= BUFFERLENGTH || write_buffer == nullptr)
+    if (write_counter >= BUFFERLENGTH || write_buffer == NULL)
     {
 
         if (primary_signal)
@@ -55,5 +55,5 @@ int *Buffer_read()
         return read_buffer;
     }
 
-    return nullptr;
+    return NULL;
 }

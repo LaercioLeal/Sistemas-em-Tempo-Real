@@ -8,6 +8,9 @@
 #define BLOCK_SIZE       1024u                                   /* amostras por bloco / FFT */
 #define BLOCK_PERIOD_US  ((1000000u * BLOCK_SIZE) / AUDIO_FS_HZ) /* 64000 us = 64 ms */
 
+#define LIMIAR_ENERGIA 0.3f
+#define REFRACTORY_BLOCKS 10
+
 /* Amostra ja filtrada (int16). O FIR roda em ISR (sem FPU), por isso e inteira.
  * A conversao para float deve ser feita na tarefa da FFT (contexto normal). */
 typedef int16_t amostra_t;

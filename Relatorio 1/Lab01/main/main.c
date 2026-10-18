@@ -3,6 +3,7 @@
 #include "i2sMic.h"
 #include "execCiclico.h"
 #include "bffPingPong.h"
+#include "mediaMovel.h"
 
 // Flag do executivo Ciclico
 extern volatile bool flag_exec_ciclico;
@@ -11,7 +12,9 @@ void app_main(void)
 {
     esp_task_wdt_deinit(); // Desligando Watchdog timer
     Buffer_init();
+    fir_init();
     i2s_mic_init();
+    media_movel_init();
 
     uint32_t quadro = 0;
 

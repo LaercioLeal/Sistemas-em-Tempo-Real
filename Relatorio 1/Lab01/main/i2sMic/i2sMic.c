@@ -5,8 +5,8 @@ static i2s_chan_handle_t rx_chan;
 void i2s_mic_init(void)
 {
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
-    chan_cfg.dma_desc_num = 6;
-    chan_cfg.dma_frame_num = 256;
+    chan_cfg.dma_desc_num = I2S_DMA_DESC_NUM;
+    chan_cfg.dma_frame_num = I2S_DMA_FRAMES;
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, NULL, &rx_chan));
 
     i2s_std_config_t std_cfg = {
@@ -33,27 +33,33 @@ void i2s_mic_init(void)
     ESP_ERROR_CHECK(i2s_channel_enable(rx_chan));
 }
 
-/* Preenche mic_buffer[] (linear), decimando o fluxo I2S por media.
- * Retorna o numero de amostras escritas (I2S_BUFFER_SIZE) ou 0 em caso de erro. */
-size_t mic_fill_buffer(int16_t *dst, size_t len)
+/* Fluxo (README, sec. 4), para cada amostra lida:
+ *     amostra (24 bits -> 16 bits, decimada por media)
+ *         -> fir_process_sample()      (estado do FIR continuo entre chamadas)
+ *         -> Buffer_push()             (ping-pong so recebe amostra filtrada)
+ *
+ * Retorna o numero de amostras enviadas ao ping-pong. Em caso de erro de leitura
+ * retorna o que ja foi enviado (< I2S_BUFFER_SIZE); o ping-pong continua consistente, pois cada
+ * buffer e sempre preenchido com BUFFERLENGTH amostras filtradas. */
+size_t mic_read_filter_push(int *buffer)
 {
     static int32_t raw[READ_CHUNK];
-    size_t out_idx = 0;
+    size_t pushed = 0;
     int32_t acc = 0;
     int cnt = 0;
 
-    while (out_idx < len)
+    while (pushed < I2S_BUFFER_SIZE)
     {
         size_t bytes_read = 0;
         esp_err_t err = i2s_channel_read(rx_chan, raw, sizeof(raw),
                                          &bytes_read, I2S_READ_TIMEOUT_MS);
         if (err != ESP_OK)
         {
-            return 0;
+            return pushed;
         }
 
         size_t n = bytes_read / sizeof(int32_t);
-        for (size_t i = 0; i < n && out_idx < len; i++)
+        for (size_t i = 0; i < n && pushed < I2S_BUFFER_SIZE; i++)
         {
             /* Dado de 24 bits alinhado a esquerda no slot de 32 bits.
              * >> 16 -> valor de 16 bits com sinal. */
@@ -61,47 +67,15 @@ size_t mic_fill_buffer(int16_t *dst, size_t len)
 
             if (++cnt == DECIMATION)
             {
-                dst[out_idx++] = (int16_t)(acc / DECIMATION);
+                int16_t x = (int16_t)(acc / DECIMATION);
                 acc = 0;
                 cnt = 0;
+
+                *(buffer + i) = x;
+            
+                pushed++;
             }
         }
     }
-    return out_idx;
+    return pushed;
 }
-
-void fill_i2s_mic()
-{
-    if (mic_fill_buffer(mic_buffer, I2S_BUFFER_SIZE) != I2S_BUFFER_SIZE)
-    {
-        return;
-    }
-}
-
-// Main de como utilizar o leitor do mic
-// void app_main(void)
-// {
-//     i2s_mic_init();
-
-//     ESP_LOGI(TAG, "I2S iniciado: %d Hz, decimacao %d -> %d Hz",
-//              I2S_SAMPLE_RATE, DECIMATION, FIR_FS);
-
-//     while (1)
-//     {
-//         /* Enche o buffer padrao de 256 posicoes (~2,56 s a 100 Hz) */
-//         if (mic_fill_buffer(mic_buffer, I2S_BUFFER_SIZE) != I2S_BUFFER_SIZE)
-//         {
-//             vTaskDelay(pdMS_TO_TICKS(100));
-//             continue;
-//         }
-
-//         size_t n = fir_process_buffer(mic_buffer, fir_out, I2S_BUFFER_SIZE);
-//         ESP_LOGI(TAG, "FIR: %u amostras filtradas", (unsigned)n);
-
-//         for (size_t i = 0; i < n; i++)
-//         {
-//             /* bruto alinhado (atraso de 2 amostras), filtrado */
-//             printf("%d,%.2f\n", mic_buffer[i + 2], fir_out[i]);
-//         }
-//     }
-// }
