@@ -33,5 +33,5 @@
     "--compile-commands-dir=c:\\Users\\Lala\\Desktop\\Tempo Real\\Relatorio 1\\ExecutivoCiclico\\build"
   ],
   "idf.flashType": "UART",
-  "idf.portWin": "COM3"
+  "idf.port": "COM3"
 }

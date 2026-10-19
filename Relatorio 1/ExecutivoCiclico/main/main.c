@@ -21,7 +21,7 @@
 
 static const char *TAG = "EXECUTIVO";
 
-// Incrementado pela interrupção do timer
+// Flag de interrupção do timer
 static volatile bool timer_flag = false;
 
 // INTERRUPÇÃO DO TIMER

@@ -33,8 +33,8 @@ void imprime_evento(bool flag_evento,
         ESP_LOGI(TAG,
              "\n"
              "t = %.3f s\n"
-             "Energia = %.3f\n"
-             "Evento = %s\n"
+             "Energia = %.2e\n"
+             "Evento Detectado = %s\n"
              "Frequência dominante = %.1f Hz\n"
              "Nota = %s\n"
              "Erro = %+.1f cents\n"
