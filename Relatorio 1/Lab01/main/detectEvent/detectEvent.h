@@ -11,11 +11,10 @@ extern uint32_t block_count;
 
 bool detecta_evento(float energy);
 
-void imprime_evento(
-    bool flag_evento,
-    float energy,
-    float freq_dominante,
-    float freq_suave,
-    NotaInfo nota);
+void imprime_evento(bool flag_evento,
+                    float energy,
+                    float freq_dominante,
+                    NotaInfo nota,
+                    uint32_t tempo_proc_us);
 
 #endif

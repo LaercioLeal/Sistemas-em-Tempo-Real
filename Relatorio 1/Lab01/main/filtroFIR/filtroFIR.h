@@ -2,6 +2,7 @@
 #define FILTRO_FIR
 
 #include <stdint.h>
+#include "projetoCfg.h"   /* [ALTERAÇÃO] AUDIO_FS_HZ e BLOCK_SIZE são usados neste header */
 
 /* --------------------------------------------------------------------------
  * Filtro FIR

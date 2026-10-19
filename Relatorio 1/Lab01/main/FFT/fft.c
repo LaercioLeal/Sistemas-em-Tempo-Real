@@ -78,11 +78,10 @@ void calcular_fft_e_frequencia(int *data, float *freq_dominante)
     static float fft_real[BLOCK_SIZE];
     static float fft_imag[BLOCK_SIZE];
 
-    // Aplica janela de Hann
     for (int i = 0; i < BLOCK_SIZE; i++)
     {
         float window = 0.5f * (1.0f - cosf(2.0f * M_PI * i / (BLOCK_SIZE - 1)));
-        fft_real[i] = (float)data[i] * window / 32768.0f; // Normaliza
+        fft_real[i] = (float)data[i] * window / 32768.0f;
         fft_imag[i] = 0.0f;
     }
 
@@ -91,11 +90,13 @@ void calcular_fft_e_frequencia(int *data, float *freq_dominante)
     float max_magnitude = 0.0f;
     int max_index = 0;
 
-    // Ajuste: procure até 2000Hz para incluir 400Hz com folga
-    int bin_min = (int)(60.0f * BLOCK_SIZE / AUDIO_FS_HZ);   // ~4
-    int bin_max = (int)(2000.0f * BLOCK_SIZE / AUDIO_FS_HZ); // ~128
+    /* [ALTERAÇÃO] Faixa 80–1200 Hz (README §8). Antes: 60–2000 Hz.
+     * bin_min = ceil(80/15,625)  = 6  (93,75 Hz)  -> também ignora DC
+     * bin_max = floor(1200/15,625) = 76 (1187,5 Hz), inclusivo */
+    const int bin_min = (int)ceilf((float)FFT_FMIN_HZ * BLOCK_SIZE / AUDIO_FS_HZ);
+    const int bin_max = (int)floorf((float)FFT_FMAX_HZ * BLOCK_SIZE / AUDIO_FS_HZ);
 
-    for (int i = bin_min; i < bin_max; i++)
+    for (int i = bin_min; i <= bin_max; i++)   /* [ALTERAÇÃO] <= para incluir bin_max */
     {
         float magnitude = fft_real[i] * fft_real[i] + fft_imag[i] * fft_imag[i];
         if (magnitude > max_magnitude)
@@ -105,22 +106,10 @@ void calcular_fft_e_frequencia(int *data, float *freq_dominante)
         }
     }
 
-    // INTERPOLAÇÃO PARABÓLICA para melhor precisão
-    if (max_index > 0 && max_index < BLOCK_SIZE / 2 - 1)
-    {
-        float mag_left = fft_real[max_index - 1] * fft_real[max_index - 1] +
-                         fft_imag[max_index - 1] * fft_imag[max_index - 1];
-        float mag_center = max_magnitude;
-        float mag_right = fft_real[max_index + 1] * fft_real[max_index + 1] +
-                          fft_imag[max_index + 1] * fft_imag[max_index + 1];
-
-        float correction = 0.5f * (mag_left - mag_right) /
-                           (mag_left - 2.0f * mag_center + mag_right);
-
-        *freq_dominante = (float)(max_index + correction) * AUDIO_FS_HZ / BLOCK_SIZE;
-    }
-    else
-    {
-        *freq_dominante = (float)max_index * AUDIO_FS_HZ / BLOCK_SIZE;
-    }
+    /* [ALTERAÇÃO] f[k] = k·Fs/N do maior pico (README §8; exemplo 437,5 Hz = bin 28).
+     * Removida a interpolação parabólica: não consta no README e, feita sobre
+     * potência (|X|²), enviesa a estimativa (da ordem de 1,5 Hz, ~12 cents em
+     * 220 Hz, conforme a posição do tom entre bins). Se o grupo quiser mantê-la,
+     * interpole com sqrtf(|X|²) (ou em log), nunca com a potência. */
+    *freq_dominante = (float)max_index * AUDIO_FS_HZ / BLOCK_SIZE;
 }

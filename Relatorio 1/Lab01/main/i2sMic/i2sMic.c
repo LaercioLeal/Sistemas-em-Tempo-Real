@@ -71,8 +71,12 @@ size_t mic_read_filter_push(int *buffer)
                 acc = 0;
                 cnt = 0;
 
-                *(buffer + i) = x;
-            
+                /* [ALTERAÇÃO] Antes: *(buffer + i) = x;
+                 * 'i' é o índice dentro do chunk DMA (0..255): só as 256 primeiras
+                 * posições eram escritas (4x) e o resto do bloco ficava em zero.
+                 * O índice correto é o número de amostras já gravadas. */
+                buffer[pushed] = x;
+
                 pushed++;
             }
         }

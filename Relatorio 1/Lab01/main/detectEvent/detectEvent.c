@@ -1,12 +1,11 @@
 #include "detectEvent.h"
-#include "esp_log.h"
-
 #include <stdio.h>
 #include <stdint.h>
-
-uint32_t block_count = 0;
+#include "esp_log.h"
 
 static const char *TAG = "DETECTOR_EVENTOS";
+
+uint32_t block_count = 0;
 
 bool detecta_evento(float energy)
 {
@@ -20,30 +19,29 @@ bool detecta_evento(float energy)
             return true;
         }
     }
-
     return false;
 }
 
 void imprime_evento(bool flag_evento,
                     float energy,
                     float freq_dominante,
-                    float freq_suave,
-                    NotaInfo nota)
+                    NotaInfo nota,
+                    uint32_t tempo_proc_us)
 {
-    if (!flag_evento)
-    {
-        return;
-    }
+    float t_s = block_count * ((float)BLOCK_SIZE / AUDIO_FS_HZ);
 
-    float t_s = block_count * ((float)BLOCK_SIZE / AUDIO_FS_HZ); // tempo em segundos
-
-    ESP_LOGI(TAG, "*** EVENTO DETECTADO ***\n");
-    ESP_LOGI(TAG, "Bloco #%lu | t = %.3f s\n", block_count, t_s);
-    ESP_LOGI(TAG, "Energia = %.3f\n", energy);
-    ESP_LOGI(TAG, "Freq. dominante = %.1f Hz\n", freq_dominante);
-    ESP_LOGI(TAG, "Freq. dominante Suavizada = %.1f Hz\n", freq_suave);
-    ESP_LOGI(TAG, "Nota = %s\n", nota.nome);
-    ESP_LOGI(TAG, "Erro = %+.1f cents\n", nota.cents);
-    ESP_LOGI(TAG, "Status = %s\n", nota.status);
-    ESP_LOGI(TAG, "------------------------\n");
+        ESP_LOGI(TAG,
+             "\n"
+             "t = %.3f s\n"
+             "Energia = %.3f\n"
+             "Evento = %s\n"
+             "Frequência dominante = %.1f Hz\n"
+             "Nota = %s\n"
+             "Erro = %+.1f cents\n"
+             "Status = %s\n"
+             "Tempo de processamento = %.1f ms\n"
+             "---------------------------------------------",
+             t_s, energy, flag_evento ? "sim" : "não",
+             freq_dominante, nota.nome, nota.cents, nota.status,
+             tempo_proc_us / 1000.0f);
 }

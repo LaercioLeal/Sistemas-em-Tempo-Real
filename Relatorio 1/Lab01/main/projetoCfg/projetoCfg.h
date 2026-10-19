@@ -3,16 +3,21 @@
 
 #include <stdint.h>
 
-/* Parametros unicos do projeto (README, secao 2). Nao repetir em outros arquivos. */
 #define AUDIO_FS_HZ      16000u
-#define BLOCK_SIZE       1024u                                   /* amostras por bloco / FFT */
-#define BLOCK_PERIOD_US  ((1000000u * BLOCK_SIZE) / AUDIO_FS_HZ) /* 64000 us = 64 ms */
+#define BLOCK_SIZE       1024u
+#define BLOCK_PERIOD_US  ((1000000u * BLOCK_SIZE) / AUDIO_FS_HZ) /* 64000 us */
 
-#define LIMIAR_ENERGIA 0.3f
+/* [ALTERAÇÃO] A energia agora é E = (1/N)·Σy² (README §7), não mais RMS.
+ * 0.09 equivale ao limiar anterior (0.3 RMS → 0.3² = 0.09). Recalibre com palma/batida. */
+#define LIMIAR_ENERGIA 0.09f
 #define REFRACTORY_BLOCKS 10
 
-/* Amostra ja filtrada (int16). O FIR roda em ISR (sem FPU), por isso e inteira.
- * A conversao para float deve ser feita na tarefa da FFT (contexto normal). */
+/* [ALTERAÇÃO] Faixa de busca do pico (README §8) */
+#define FFT_FMIN_HZ 80u
+#define FFT_FMAX_HZ 1200u
+
+#define PRINT_PERIOD_BLOCKS 16u
+
 typedef int16_t amostra_t;
 
 #endif

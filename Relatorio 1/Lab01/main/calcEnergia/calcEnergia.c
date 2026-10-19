@@ -8,17 +8,11 @@ float calcula_energia(int *data, int num_samples)
 
     for (int i = 0; i < num_samples; i++)
     {
-        float sample = (float)*(data + i);
-        // Normaliza a amostra individualmente para o intervalo [-1.0, 1.0]
-        // antes de multiplicar, evitando estourar a capacidade do float (overflow)
-        float sample_norm = sample / 32768.0f;
-        soma_quadrados += (sample_norm * sample_norm);
+        float sample_norm = (float)data[i] / 32768.0f;
+        soma_quadrados += sample_norm * sample_norm;
     }
 
-    // Calcula a energia média do bloco (agora garantida entre 0.0 e 1.0)
-    float energia_media = soma_quadrados / num_samples;
-
-    // Retorna o valor RMS (Root Mean Square)
-    // Deixa a escala de energia linear e muito mais fácil de ler no console
-    return sqrtf(energia_media);
+    /* [ALTERAÇÃO] Retorna E = (1/N)·Σy² (README §7).
+     * Antes: sqrtf(energia_media), que é RMS e não a energia média pedida. */
+    return soma_quadrados / num_samples;
 }
