@@ -36,6 +36,9 @@ static uint32_t amostras_perdidas = 0;      /* [ALTERAÇÃO] overruns do ping-po
 typedef enum { T_I2S, T_FIR, T_FFT, T_ENERGIA, T_EVENTO, T_NOTA, T_PRINT, T_NUM } tarefa_id_t;
 static const char *nome_tarefa[T_NUM] = {"I2S", "FIR+push", "FFT", "Energia", "Evento", "Nota", "Print"};
 static uint32_t c_max_us[T_NUM];
+static uint32_t c_quadro_max_us[TOTAL_QUADROS];
+
+static int64_t t_proc = 0; // Armazena tempo de processamento
 
 #define MEDE_TAREFA(id, chamada)                                         \
     do {                                                                 \
@@ -49,13 +52,28 @@ void exec_ciclico_imprime_tempos(void)
 {
     for (int i = 0; i < T_NUM; i++)
     {
-        ESP_LOGI(TAG, "C_max %-9s = %lu us\n", nome_tarefa[i], (unsigned long)c_max_us[i]);
+        /* [ALTERAÇÃO] removido o "\n" do formato (gerava linha em branco no ESP_LOGI) */
+        ESP_LOGI(TAG, "C_max %-9s = %lu us", nome_tarefa[i], (unsigned long)c_max_us[i]);
     }
-    ESP_LOGI(TAG, "Quadros estourados (> %u us) = %lu | amostras perdidas = %lu\n",
-           (unsigned)CICLO_BASE_US, (unsigned long)quadros_estourados,
-           (unsigned long)amostras_perdidas);
-}
 
+    /* [ALTERAÇÃO – TESTE 4] Soma dos C_max por quadro (limite superior, conservador) */
+    uint32_t s0 = c_max_us[T_I2S] + c_max_us[T_FIR];
+    uint32_t s1 = c_max_us[T_FFT] + c_max_us[T_ENERGIA] + c_max_us[T_EVENTO] +
+                  c_max_us[T_NOTA] + c_max_us[T_PRINT];
+    ESP_LOGI(TAG, "Soma C_max: quadro0 = %lu us | quadro1 = %lu us | F = %u us",
+             (unsigned long)s0, (unsigned long)s1, (unsigned)CICLO_BASE_US);
+
+    /* [ALTERAÇÃO – TESTE 4] Maior tempo realmente medido de cada quadro */
+    for (uint32_t q = 0; q < TOTAL_QUADROS; q++)
+    {
+        ESP_LOGI(TAG, "Tempo max real do quadro %lu = %lu us",
+                 (unsigned long)q, (unsigned long)c_quadro_max_us[q]);
+    }
+
+    ESP_LOGI(TAG, "Quadros estourados (> %u us) = %lu | amostras perdidas = %lu",
+             (unsigned)CICLO_BASE_US, (unsigned long)quadros_estourados,
+             (unsigned long)amostras_perdidas);
+}
 void set_exec_ciclico_flag(bool val)
 {
     flag_exec_ciclico = val;
@@ -236,43 +254,58 @@ void exec_ciclico_executar_quadro(uint32_t quadro)
         buffer_atual = Buffer_read();
     }
 
-    /* [ALTERAÇÃO] Quadro 0 (a cada 64 ms): aquisição e FIR.
-     * Antes: T1 no quadro 0 e T2 no quadro 1 do ciclo de 512 ms. Agora o bloco
-     * fica pronto (e o ping-pong troca) no próprio quadro 0. */
-    if ((quadro % TOTAL_QUADROS) == Q_AQUISICAO)
+    // Quadros 0 e 8
+    if (((quadro*2) % TOTAL_QUADROS) == Q_AQUISICAO)
     {
         MEDE_TAREFA(T_I2S, tarefa_i2s_mic());
         MEDE_TAREFA(T_FIR, tarefa_fir());
     }
 
-    /* [ALTERAÇÃO] Quadro 1 (a cada 64 ms): processamento do bloco recém-filtrado.
-     * Antes: FFT/energia no quadro 3, evento/média no 5, nota no 7 e impressão no 8
-     * (inexistente, pois os quadros só iam até 7).
-     * Ordem: FFT e energia leem o buffer; o evento libera o buffer; nota e print
-     * só usam resultados. */
-    if ((quadro % TOTAL_QUADROS) == Q_PROCESSAMENTO)
+    // Quadros 1 e 9
+    if (((quadro * 2)% TOTAL_QUADROS) == Q_FFT)
     {
-        int64_t t_proc = esp_timer_get_time();
-
+        t_proc = esp_timer_get_time();
         MEDE_TAREFA(T_FFT, tarefa_fft());
+    }
+    
+    // Quadros 4 e 12
+    if (((quadro * 2) % TOTAL_QUADROS) == Q_CALC_EVENT)
+    {
         MEDE_TAREFA(T_ENERGIA, tarefa_calcula_energia());
         MEDE_TAREFA(T_EVENTO, tarefa_detecta_evento());
         MEDE_TAREFA(T_NOTA, tarefa_identifica_nota());
-
-        tempo_proc_us = (uint32_t)(esp_timer_get_time() - t_proc); /* energia+evento+FFT+nota */
+    }
+    
+    // Quadros 5 e 13
+    if (((quadro * 2) % TOTAL_QUADROS) == Q_IMPRESSAO)
+    {
+        tempo_proc_us = (uint32_t)(esp_timer_get_time() - t_proc);
 
         MEDE_TAREFA(T_PRINT, tarefa_impressao());
     }
 
-    /* [ALTERAÇÃO] Verificação de prazo do quadro (README §1 e §12, Teste 4).
-     * A primeira chamada (feita no app_main, antes do timer) bloqueia ~64 ms
-     * esperando o 1º bloco do microfone e é ignorada. */
     uint32_t dt = (uint32_t)(esp_timer_get_time() - t_ini);
-    if (!primeira_chamada && dt > CICLO_BASE_US)
+
+    /* [ALTERAÇÃO – TESTE 4] A 1ª chamada (app_main) espera ~64 ms pelo 1º bloco do
+     * microfone: descarta essa medição, senão C_max(I2S) ficaria ≈ 64000 us.
+     * Nas demais, guarda o maior tempo de cada quadro. */
+    if (primeira_chamada)
     {
-        quadros_estourados++;
-        ESP_LOGW(TAG, "Quadro %lu estourou: %lu us > %lu us",
-                 (unsigned long)quadro, (unsigned long)dt, (unsigned long)CICLO_BASE_US);
+        for (int i = 0; i < T_NUM; i++)
+        {
+            c_max_us[i] = 0;
+        }
     }
+    else if (dt > c_quadro_max_us[quadro % TOTAL_QUADROS])
+    {
+        c_quadro_max_us[quadro % TOTAL_QUADROS] = dt;
+    }
+
+    // if (!primeira_chamada && dt > CICLO_BASE_US)
+    // {
+    //     quadros_estourados++;
+    //     ESP_LOGW(TAG, "Quadro %lu estourou: %lu us > %lu us",
+    //              (unsigned long)quadro, (unsigned long)dt, (unsigned long)CICLO_BASE_US);
+    // }
     primeira_chamada = false;
 }

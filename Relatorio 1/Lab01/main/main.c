@@ -33,7 +33,7 @@ void app_main(void)
 
             /* [ALTERAÇÃO] opcional: imprime os C_max uma vez, após 100 ciclos de 64 ms.
              * Fora do quadro medido; serve apenas para preencher a tabela do relatório. */
-            if (quadro == Q_PROCESSAMENTO && ++ciclos == 100)
+            if (quadro == 1 && ++ciclos % 100 == 0)
             {
                 exec_ciclico_imprime_tempos();
             }
