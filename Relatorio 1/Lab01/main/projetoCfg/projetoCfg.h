@@ -9,14 +9,14 @@
 
 /* [ALTERAÇÃO] A energia agora é E = (1/N)·Σy² (README §7), não mais RMS.
  * 0.09 equivale ao limiar anterior (0.3 RMS → 0.3² = 0.09). Recalibre com palma/batida. */
-#define LIMIAR_ENERGIA 1.0e-3f
+#define LIMIAR_ENERGIA 1.0e-4f
 #define REFRACTORY_BLOCKS 10
 
 /* [ALTERAÇÃO] Faixa de busca do pico (README §8) */
 #define FFT_FMIN_HZ 80u
 #define FFT_FMAX_HZ 1200u
 
-#define PRINT_PERIOD_BLOCKS 16u
+#define PRINT_PERIOD_BLOCKS 32u
 
 typedef int16_t amostra_t;
 

@@ -1,5 +1,5 @@
 #include "execCiclico.h"
-#include "esp_timer.h"          /* [ALTERAÇÃO] medição de tempos (README §5, §10, §11, §12) */
+#include "esp_timer.h" /* [ALTERAÇÃO] medição de tempos (README §5, §10, §11, §12) */
 #include <stdio.h>
 #include "i2sMic.h"
 #include "filtroFIR.h"
@@ -8,16 +8,18 @@
 #include "notaMusical.h"
 #include "calcEnergia.h"
 #include "detectEvent.h"
-/* [ALTERAÇÃO] Removido #include "mediaMovel.h": o módulo calcula potência média de
- * amostras e não faz parte do fluxo do README (FFT -> frequência dominante -> nota). */
 
-static const char *TAG = "EXEC_CICLICO";
+/* [ALTERAÇÃO] Contagem de ticks. Antes: só um flag booleano, que perdia os ticks ocorridos
+ * durante tarefas de vários quadros (FFT/Print) e desalinhava 'quadro' do tempo real.
+ * ticks_total: só a ISR escreve. ticks_consumidos: só o laço principal escreve. */
+static volatile uint32_t ticks_total = 0;
+static volatile uint32_t ticks_consumidos = 0;
 
 volatile bool flag_exec_ciclico = false;
 volatile bool flag_i2s_ready = false;
 volatile bool flag_fir_ready = false;
 volatile bool flag_fft_ready = false;
-volatile bool flag_nota_ready = false;      /* [ALTERAÇÃO] substitui flag_media_ready */
+volatile bool flag_nota_ready = false; /* [ALTERAÇÃO] substitui flag_media_ready */
 volatile bool flag_energia_ready = false;
 volatile bool flag_evento_pendente = false;
 
@@ -28,65 +30,71 @@ static float energia = 0.0f;
 /* [ALTERAÇÃO] Removidos freq_suavizada e energia_evento (a saída usa os valores do bloco). */
 static NotaInfo nota_atual;
 
-static uint32_t tempo_proc_us = 0;          /* [ALTERAÇÃO] "Tempo de processamento" (README §11) */
-static uint32_t quadros_estourados = 0;     /* [ALTERAÇÃO] contagem de prazos perdidos */
-static uint32_t amostras_perdidas = 0;      /* [ALTERAÇÃO] overruns do ping-pong */
+static uint32_t tempo_proc_us = 0;      /* [ALTERAÇÃO] "Tempo de processamento" (README §11) */
+static uint32_t quadros_estourados = 0; /* [ALTERAÇÃO] contagem de prazos perdidos */
+static uint32_t amostras_perdidas = 0;  /* [ALTERAÇÃO] overruns do ping-pong */
 
 /* ---------- [ALTERAÇÃO] Medição do tempo de execução de cada tarefa ---------- */
-typedef enum { T_I2S, T_FIR, T_FFT, T_ENERGIA, T_EVENTO, T_NOTA, T_PRINT, T_NUM } tarefa_id_t;
+typedef enum
+{
+    T_I2S,
+    T_FIR,
+    T_FFT,
+    T_ENERGIA,
+    T_EVENTO,
+    T_NOTA,
+    T_PRINT,
+    T_NUM
+} tarefa_id_t;
 static const char *nome_tarefa[T_NUM] = {"I2S", "FIR+push", "FFT", "Energia", "Evento", "Nota", "Print"};
 static uint32_t c_max_us[T_NUM];
 static uint32_t c_quadro_max_us[TOTAL_QUADROS];
-
-static int64_t t_proc = 0; // Armazena tempo de processamento
-
-#define MEDE_TAREFA(id, chamada)                                         \
-    do {                                                                 \
-        int64_t _t0 = esp_timer_get_time();                              \
-        chamada;                                                         \
-        uint32_t _dt = (uint32_t)(esp_timer_get_time() - _t0);           \
-        if (_dt > c_max_us[id]) c_max_us[id] = _dt;                      \
+#define MEDE_TAREFA(id, chamada)                               \
+    do                                                         \
+    {                                                          \
+        int64_t _t0 = esp_timer_get_time();                    \
+        chamada;                                               \
+        uint32_t _dt = (uint32_t)(esp_timer_get_time() - _t0); \
+        if (_dt > c_max_us[id])                                \
+            c_max_us[id] = _dt;                                \
     } while (0)
 
 void exec_ciclico_imprime_tempos(void)
 {
+    printf("\n-----------------Tempos de Execução-------------------\n");
     for (int i = 0; i < T_NUM; i++)
     {
-        /* [ALTERAÇÃO] removido o "\n" do formato (gerava linha em branco no ESP_LOGI) */
-        ESP_LOGI(TAG, "C_max %-9s = %lu us", nome_tarefa[i], (unsigned long)c_max_us[i]);
+        printf("C_max %-9s = %lu us\n", nome_tarefa[i], (unsigned long)c_max_us[i]);
     }
-
-    /* [ALTERAÇÃO – TESTE 4] Soma dos C_max por quadro (limite superior, conservador) */
-    uint32_t s0 = c_max_us[T_I2S] + c_max_us[T_FIR];
-    uint32_t s1 = c_max_us[T_FFT] + c_max_us[T_ENERGIA] + c_max_us[T_EVENTO] +
-                  c_max_us[T_NOTA] + c_max_us[T_PRINT];
-    ESP_LOGI(TAG, "Soma C_max: quadro0 = %lu us | quadro1 = %lu us | F = %u us",
-             (unsigned long)s0, (unsigned long)s1, (unsigned)CICLO_BASE_US);
-
-    /* [ALTERAÇÃO – TESTE 4] Maior tempo realmente medido de cada quadro */
-    for (uint32_t q = 0; q < TOTAL_QUADROS; q++)
-    {
-        ESP_LOGI(TAG, "Tempo max real do quadro %lu = %lu us",
-                 (unsigned long)q, (unsigned long)c_quadro_max_us[q]);
-    }
-
-    ESP_LOGI(TAG, "Quadros estourados (> %u us) = %lu | amostras perdidas = %lu",
-             (unsigned)CICLO_BASE_US, (unsigned long)quadros_estourados,
-             (unsigned long)amostras_perdidas);
+    printf("--------------------------------------------\n");
 }
+
 void set_exec_ciclico_flag(bool val)
 {
-    flag_exec_ciclico = val;
+    if (val)
+    {
+        flag_exec_ciclico = true;
+        return;
+    }
+
+    /* [ALTERAÇÃO] val == false: o main acabou de consumir UM tick.
+     * Se ainda houver ticks pendentes (tarefa que ocupou vários quadros), mantém o flag ligado
+     * para o main executar os quadros seguintes imediatamente e recuperar o alinhamento. */
+    ticks_consumidos++;
+    flag_exec_ciclico = false;
+    if (ticks_total != ticks_consumidos)
+    {
+        flag_exec_ciclico = true;
+    }
 }
 
-// INTERRUPÇÃO DO TIMER
 static bool IRAM_ATTR timer_callback(
     gptimer_handle_t timer,
     const gptimer_alarm_event_data_t *edata,
     void *user_ctx)
 {
+    ticks_total++; /* [ALTERAÇÃO] conta o tick (antes só ligava o flag) */
     flag_exec_ciclico = true;
-
     return false;
 }
 
@@ -97,14 +105,13 @@ gptimer_handle_t config_exec_ciclico_timer(void)
     gptimer_config_t timer_config = {
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
         .direction = GPTIMER_COUNT_UP,
-        .resolution_hz = 1000000};                  /* 1 tick = 1 us */
+        .resolution_hz = 1000000}; /* 1 tick = 1 us */
 
     ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &timer));
 
     gptimer_event_callbacks_t callbacks = {.on_alarm = timer_callback};
     ESP_ERROR_CHECK(gptimer_register_event_callbacks(timer, &callbacks, NULL));
 
-    /* Alarme a cada CICLO_BASE_US (= 32 ms), com recarga automática */
     gptimer_alarm_config_t alarm_config = {
         .reload_count = 0,
         .alarm_count = CICLO_BASE_US,
@@ -137,17 +144,17 @@ static void tarefa_fir(void)
 
     flag_fir_ready = false;
 
-    for (int i = 0; i < BLOCK_SIZE; i++)
+    for (int i = 0; i < I2S_BUFFER_SIZE; i++)
     {
         int16_t y = fir_process_sample(bff_ic2_mic[i]);
 
-        if (!Buffer_push(y))        /* [ALTERAÇÃO] detecta overrun do ping-pong */
+        if (!Buffer_push(y)) /* [ALTERAÇÃO] detecta overrun do ping-pong */
         {
             amostras_perdidas++;
         }
     }
 
-    flag_i2s_ready = false;         /* [ALTERAÇÃO] bloco bruto consumido */
+    flag_i2s_ready = false; /* [ALTERAÇÃO] bloco bruto consumido */
     flag_fir_ready = true;
 }
 
@@ -229,13 +236,11 @@ static void tarefa_impressao(void)
     /* [ALTERAÇÃO] Antes: imprimia a cada bloco (64 ms), ilegível e acima do prazo.
      * Agora: imprime se houve evento neste bloco OU a cada PRINT_PERIOD_BLOCKS blocos.
      * block_count já foi incrementado em tarefa_detecta_evento() neste mesmo quadro. */
-    bool imprimir = flag_evento_pendente ||
-                    ((block_count % PRINT_PERIOD_BLOCKS) == 0);
+    bool imprimir = flag_evento_pendente || ((block_count % PRINT_PERIOD_BLOCKS) == 0);
 
     if (imprimir)
     {
-        imprime_evento(flag_evento_pendente, energia, freq_dominante,
-                       nota_atual, tempo_proc_us);
+        imprime_evento(flag_evento_pendente, energia, freq_dominante, nota_atual);
     }
 
     /* [ALTERAÇÃO] Sempre limpa: a impressão roda no mesmo quadro da detecção,
@@ -249,46 +254,42 @@ void exec_ciclico_executar_quadro(uint32_t quadro)
     static bool primeira_chamada = true;
     int64_t t_ini = esp_timer_get_time();
 
+    const int q_atual = quadro % TOTAL_QUADROS;
+
     if (buffer_atual == NULL)
     {
         buffer_atual = Buffer_read();
     }
 
-    // Quadros 0 e 8
-    if (((quadro*2) % TOTAL_QUADROS) == Q_AQUISICAO)
+    if (q_atual == Q_AQUISICAO)
     {
         MEDE_TAREFA(T_I2S, tarefa_i2s_mic());
         MEDE_TAREFA(T_FIR, tarefa_fir());
     }
 
-    // Quadros 1 e 9
-    if (((quadro * 2)% TOTAL_QUADROS) == Q_FFT)
+    if (q_atual == Q_FFT)
     {
-        t_proc = esp_timer_get_time();
+        int64_t t0 = esp_timer_get_time();
         MEDE_TAREFA(T_FFT, tarefa_fft());
+        tempo_proc_us = (uint32_t)(esp_timer_get_time() - t0);
     }
-    
-    // Quadros 4 e 12
-    if (((quadro * 2) % TOTAL_QUADROS) == Q_CALC_EVENT)
+
+    if (q_atual == Q_CALC_EVENT)
     {
+        int64_t t0 = esp_timer_get_time();
         MEDE_TAREFA(T_ENERGIA, tarefa_calcula_energia());
         MEDE_TAREFA(T_EVENTO, tarefa_detecta_evento());
         MEDE_TAREFA(T_NOTA, tarefa_identifica_nota());
+        tempo_proc_us += (uint32_t)(esp_timer_get_time() - t0);
     }
-    
-    // Quadros 5 e 13
-    if (((quadro * 2) % TOTAL_QUADROS) == Q_IMPRESSAO)
-    {
-        tempo_proc_us = (uint32_t)(esp_timer_get_time() - t_proc);
 
+    if (q_atual == Q_IMPRESSAO)
+    {
         MEDE_TAREFA(T_PRINT, tarefa_impressao());
     }
 
     uint32_t dt = (uint32_t)(esp_timer_get_time() - t_ini);
 
-    /* [ALTERAÇÃO – TESTE 4] A 1ª chamada (app_main) espera ~64 ms pelo 1º bloco do
-     * microfone: descarta essa medição, senão C_max(I2S) ficaria ≈ 64000 us.
-     * Nas demais, guarda o maior tempo de cada quadro. */
     if (primeira_chamada)
     {
         for (int i = 0; i < T_NUM; i++)
@@ -301,11 +302,11 @@ void exec_ciclico_executar_quadro(uint32_t quadro)
         c_quadro_max_us[quadro % TOTAL_QUADROS] = dt;
     }
 
-    // if (!primeira_chamada && dt > CICLO_BASE_US)
-    // {
-    //     quadros_estourados++;
-    //     ESP_LOGW(TAG, "Quadro %lu estourou: %lu us > %lu us",
-    //              (unsigned long)quadro, (unsigned long)dt, (unsigned long)CICLO_BASE_US);
-    // }
+    if (!primeira_chamada && dt > CICLO_BASE_US)
+    {
+        quadros_estourados++;
+        printf("Quadros estourados (> orcamento) = %lu | amostras perdidas = %lu",
+               (unsigned long)quadros_estourados, (unsigned long)amostras_perdidas);
+    }
     primeira_chamada = false;
 }

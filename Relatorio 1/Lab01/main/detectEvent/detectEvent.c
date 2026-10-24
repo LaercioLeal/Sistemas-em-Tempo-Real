@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include "esp_log.h"
 
-static const char *TAG = "DETECTOR_EVENTOS";
-
 uint32_t block_count = 0;
 
 bool detecta_evento(float energy)
@@ -25,23 +23,19 @@ bool detecta_evento(float energy)
 void imprime_evento(bool flag_evento,
                     float energy,
                     float freq_dominante,
-                    NotaInfo nota,
-                    uint32_t tempo_proc_us)
+                    NotaInfo nota)
 {
     float t_s = block_count * ((float)BLOCK_SIZE / AUDIO_FS_HZ);
+    
+    printf("t = %.3f s\n"
+            "Energia = %.2e\n"
+            "Evento Detectado = %s\n"
+            "Frequência dominante = %.1f Hz\n"
+            "Nota = %s\n"
+            "Erro = %+.1f cents\n"
+            "Status = %s\n"
+            "---------------------------------------------\n",
+            t_s, energy, flag_evento ? "sim" : "não",
+            freq_dominante, nota.nome, nota.cents, nota.status);
 
-        ESP_LOGI(TAG,
-             "\n"
-             "t = %.3f s\n"
-             "Energia = %.2e\n"
-             "Evento Detectado = %s\n"
-             "Frequência dominante = %.1f Hz\n"
-             "Nota = %s\n"
-             "Erro = %+.1f cents\n"
-             "Status = %s\n"
-             "Tempo de processamento = %.1f ms\n"
-             "---------------------------------------------",
-             t_s, energy, flag_evento ? "sim" : "não",
-             freq_dominante, nota.nome, nota.cents, nota.status,
-             tempo_proc_us / 1000.0f);
 }

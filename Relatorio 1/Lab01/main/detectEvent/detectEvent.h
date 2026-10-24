@@ -14,7 +14,6 @@ bool detecta_evento(float energy);
 void imprime_evento(bool flag_evento,
                     float energy,
                     float freq_dominante,
-                    NotaInfo nota,
-                    uint32_t tempo_proc_us);
+                    NotaInfo nota);
 
 #endif
