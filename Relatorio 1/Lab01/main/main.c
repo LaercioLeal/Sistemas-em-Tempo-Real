@@ -2,6 +2,7 @@
 #include "esp_task_wdt.h"
 #include "i2sMic.h"
 #include "execCiclico.h"
+#include "monotonico.h"
 #include "bffPingPong.h"
 
 extern volatile bool flag_exec_ciclico;
@@ -13,15 +14,17 @@ void app_main(void)
     fir_init();
     i2s_mic_init();
 
+    // Utilizando Executivo Cíclico
+    /*
     uint32_t quadro = 0;
 
-    exec_ciclico_executar_quadro(quadro);   /* quadro 0: 1º bloco (bloqueia ~64 ms) */
+    exec_ciclico_executar_quadro(quadro); 
 
-    quadro = 1;                             /* o 1º tick do timer processa esse bloco */
+    quadro = 1;
 
     config_exec_ciclico_timer();
 
-    uint32_t ciclos = 0;                    /* [ALTERAÇÃO] opcional, só para o relatório */
+    uint32_t ciclos = 0;
 
     while (1)
     {
@@ -31,8 +34,8 @@ void app_main(void)
 
             exec_ciclico_executar_quadro(quadro);
 
-            /* [ALTERAÇÃO] opcional: imprime os C_max uma vez, após 100 ciclos de 64 ms.
-             * Fora do quadro medido; serve apenas para preencher a tabela do relatório. */
+            // [ALTERAÇÃO] opcional: imprime os C_max uma vez, após 100 ciclos de 64 ms.
+            // Fora do quadro medido; serve apenas para preencher a tabela do relatório.
             if (quadro == 1 && ++ciclos % 250 == 0)
             {
                 exec_ciclico_imprime_tempos();
@@ -46,4 +49,9 @@ void app_main(void)
             }
         }
     }
+    */
+
+    // Utilizando Taxa Monotonica
+    monotonico_init();
+    monotonico_despachar();
 }
