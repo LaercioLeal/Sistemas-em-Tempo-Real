@@ -225,6 +225,12 @@ void tarefa_fir(void)
 
 void tarefa_fft(void)
 {
+    
+    if (buffer_atual == NULL)
+    {
+        buffer_atual = Buffer_read();
+    }
+
     if (!flag_fir_ready || buffer_atual == NULL)
     {
         return;
