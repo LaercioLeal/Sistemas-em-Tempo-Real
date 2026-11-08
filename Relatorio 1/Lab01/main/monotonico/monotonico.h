@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "driver/gpio.h"
+#include "driver/gptimer.h"
 
 #define RM_TICK_US          1000u       /* período do tick: 1 ms              */
 #define RM_TIMER_RES_HZ     1000000u    /* resolução do timer: 1 MHz (1 us)   */
@@ -38,17 +40,6 @@ void tarefa_calcula_energia(void);
 void tarefa_detecta_evento(void);
 void tarefa_identifica_nota(void);
 void tarefa_impressao(void);
- 
-// TABELA DE TAREFAS
-rm_tarefa_t tabela[] = {
-    RM_TAREFA("i2s_mic", tarefa_i2s_mic, 64),
-    RM_TAREFA("fir", tarefa_fir, 64),
-    RM_TAREFA("fft", tarefa_fft, 64),
-    RM_TAREFA("calc_energia", tarefa_calcula_energia, 64),
-    RM_TAREFA("detecta_evento", tarefa_detecta_evento, 64),
-    RM_TAREFA("identifica_nota", tarefa_identifica_nota, 64),
-    RM_TAREFA("imprime_resultados", tarefa_impressao, 1024),
-};
 
 #define RM_NUM_TAREFAS  (sizeof(tabela) / sizeof(tabela[0]))
  

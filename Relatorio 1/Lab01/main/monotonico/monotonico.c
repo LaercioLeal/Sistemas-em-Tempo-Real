@@ -24,6 +24,17 @@ static float freq_dominante = 0.0f;
 static float energia = 0.0f;
 static NotaInfo nota_atual;
 
+// TABELA DE TAREFAS
+rm_tarefa_t tabela[] = {
+    RM_TAREFA("i2s_mic", tarefa_i2s_mic, 64),
+    RM_TAREFA("fir", tarefa_fir, 64),
+    RM_TAREFA("fft", tarefa_fft, 64),
+    RM_TAREFA("calc_energia", tarefa_calcula_energia, 64),
+    RM_TAREFA("detecta_evento", tarefa_detecta_evento, 64),
+    RM_TAREFA("identifica_nota", tarefa_identifica_nota, 64),
+    RM_TAREFA("imprime_resultados", tarefa_impressao, 1024),
+};
+
 /* Ordena a tabela por período crescente (insertion sort, estável).
  * Deve ser chamada ANTES de iniciar o timer. */
 static void rm_ordenar_tabela(void)
@@ -178,8 +189,7 @@ void monotonico_init(void)
 }
 
 // Tarefas
-
-static void tarefa_i2s_mic(void)
+void tarefa_i2s_mic(void)
 {
     flag_i2s_ready = false;
 
@@ -190,7 +200,7 @@ static void tarefa_i2s_mic(void)
     }
 }
 
-static void tarefa_fir(void)
+void tarefa_fir(void)
 {
     if (!flag_i2s_ready)
     {
@@ -213,7 +223,7 @@ static void tarefa_fir(void)
     flag_fir_ready = true;
 }
 
-static void tarefa_fft(void)
+void tarefa_fft(void)
 {
     if (!flag_fir_ready || buffer_atual == NULL)
     {
@@ -229,7 +239,7 @@ static void tarefa_fft(void)
 }
 
 /* [ALTERAÇÃO] static (antes era pública sem protótipo) */
-static void tarefa_calcula_energia(void)
+void tarefa_calcula_energia(void)
 {
     if (!flag_fir_ready || buffer_atual == NULL)
     {
@@ -241,7 +251,7 @@ static void tarefa_calcula_energia(void)
     flag_energia_ready = true;
 }
 
-static void tarefa_detecta_evento(void)
+void tarefa_detecta_evento(void)
 {
     if (!flag_energia_ready)
     {
@@ -265,7 +275,7 @@ static void tarefa_detecta_evento(void)
     block_count++;
 }
 
-static void tarefa_identifica_nota(void)
+void tarefa_identifica_nota(void)
 {
     /* [ALTERAÇÃO] Depende da FFT (flag_fft_ready), não mais da média móvel */
     if (!flag_fft_ready)
