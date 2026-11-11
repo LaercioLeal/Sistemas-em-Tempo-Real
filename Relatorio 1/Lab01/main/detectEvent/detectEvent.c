@@ -25,17 +25,15 @@ void imprime_evento(bool flag_evento,
                     float freq_dominante,
                     NotaInfo nota)
 {
-    float t_s = block_count * ((float)BLOCK_SIZE / AUDIO_FS_HZ);
     
-    printf("t = %.3f s\n"
-            "Energia = %.2e\n"
+    printf( "Energia = %.2e\n"
             "Evento Detectado = %s\n"
             "Frequência dominante = %.1f Hz\n"
             "Nota = %s\n"
             "Erro = %+.1f cents\n"
             "Status = %s\n"
             "---------------------------------------------\n",
-            t_s, energy, flag_evento ? "sim" : "não",
+            energy, flag_evento ? "sim" : "não",
             freq_dominante, nota.nome, nota.cents, nota.status);
 
 }

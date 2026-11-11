@@ -14,7 +14,7 @@
 
 /* [ALTERAÇÃO] Faixa de busca do pico (README §8) */
 #define FFT_FMIN_HZ 80u
-#define FFT_FMAX_HZ 1200u
+#define FFT_FMAX_HZ 80000u
 
 #define PRINT_PERIOD_BLOCKS 32u
 

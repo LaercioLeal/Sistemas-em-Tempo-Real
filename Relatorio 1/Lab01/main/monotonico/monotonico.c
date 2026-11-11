@@ -28,10 +28,10 @@ static NotaInfo nota_atual;
 rm_tarefa_t tabela[] = {
     RM_TAREFA("i2s_mic", tarefa_i2s_mic, 64),
     RM_TAREFA("fir", tarefa_fir, 64),
-    RM_TAREFA("fft", tarefa_fft, 64),
-    RM_TAREFA("calc_energia", tarefa_calcula_energia, 64),
-    RM_TAREFA("detecta_evento", tarefa_detecta_evento, 64),
-    RM_TAREFA("identifica_nota", tarefa_identifica_nota, 64),
+    RM_TAREFA("fft", tarefa_fft, 512),
+    RM_TAREFA("calc_energia", tarefa_calcula_energia, 512),
+    RM_TAREFA("detecta_evento", tarefa_detecta_evento, 1024),
+    RM_TAREFA("identifica_nota", tarefa_identifica_nota, 1024),
     RM_TAREFA("imprime_resultados", tarefa_impressao, 1024),
 };
 
@@ -213,10 +213,7 @@ void tarefa_fir(void)
     {
         int16_t y = fir_process_sample(bff_ic2_mic[i]);
 
-        if (!Buffer_push(y)) /* [ALTERAÇÃO] detecta overrun do ping-pong */
-        {
-            amostras_perdidas++;
-        }
+        Buffer_push(y);
     }
 
     flag_i2s_ready = false; /* [ALTERAÇÃO] bloco bruto consumido */
